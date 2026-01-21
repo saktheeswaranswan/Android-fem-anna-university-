@@ -1,0 +1,202 @@
+In p5js write. An planevstressevplate meshed by slider and mohrs scicle elected for each strees max only whevselselected give meshing matrix show. Noode number when it's element is selected and colours sobwrite p5js code write for show in canvas rewrite fullyñCopy code
+Js
+/*
+ * 2D Plane Stress Analysis - p5.js Sketch
+ * This sketch creates a rectangular plate meshed into quadrilateral elements.
+ * Synthetic stresses (σx, σy, τxy) are assigned to each element and the principal stresses are computed using the plane stress formulas01.
+ * A slider controls the mesh resolution (number of elements per side)2.
+ * Clicking on an element selects it (using mousePressed)3, highlights it, and displays its node numbers.
+ * The selected element's Mohr's Circle is drawn, using σ_avg = (σx+σy)/2 and radius R = sqrt(((σx-σy)/2)^2 + τ_xy^2)4.
+ * Element colors represent the max principal stress (σ1) using a gradient via lerpColor()5.
+ * A div shows the mesh connectivity (element-to-node mapping).
+ */
+
+let slider;             // Slider to control mesh resolution
+let elements = [];      // Array to store element stress data and connectivity
+let currentRes = 5;     // Current mesh resolution (elements per side)
+let plateSize = 400;    // Plate dimension (width and height)
+let colLow, colHigh;    // Colors for stress gradient (low, high)
+let minSigma = Infinity, maxSigma = -Infinity;  // To map stresses to colors
+let selectedIndex = -1; // Index of selected element (-1 if none)
+let connectivityDiv;    // Div element to show connectivity matrix
+
+function setup() {
+  createCanvas(800, 600);
+  colorMode(RGB);
+  // Create slider for mesh resolution6
+  slider = createSlider(2, 20, currentRes, 1);
+  slider.position(420, 10);
+  slider.style('width', '200px');
+  // Create a div to display element connectivity (mesh matrix)
+  connectivityDiv = createDiv('');
+  connectivityDiv.style('white-space', 'pre');
+  connectivityDiv.style('font-family', 'monospace');
+  connectivityDiv.position(420, 50);
+  connectivityDiv.style('background', '#f0f0f0');
+  connectivityDiv.style('padding', '10px');
+  // Define color gradient endpoints (blue to red)
+  colLow = color(0, 0, 255);
+  colHigh = color(255, 0, 0);
+  createMesh();  // Initialize mesh and stresses
+}
+
+function createMesh() {
+  // Generate mesh elements, assign random stresses, and compute σ1 (max principal stress)
+  elements = [];
+  minSigma = Infinity;
+  maxSigma = -Infinity;
+  let n = currentRes;
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < n; i++) {
+      // Synthetic stress values (e.g., random)
+      let sxx = random(50, 150);
+      let syy = random(50, 150);
+      let txy = random(-50, 50);
+      // Compute principal stresses (σ1, σ2) using plane stress formula7
+      let sigmaAvg = 0.5 * (sxx + syy);
+      let R = sqrt(0.25 * sq(sxx - syy) + sq(txy)); // radius for Mohr's circle8
+      let sigma1 = sigmaAvg + R;
+      let sigma2 = sigmaAvg - R;
+      // Store element data: node indices (1-based) and stress values
+      let n1 = j * (n + 1) + i + 1;
+      let n2 = n1 + 1;
+      let n4 = n1 + (n + 1);
+      let n3 = n4 + 1;
+      elements.push({i, j, sxx, syy, txy, sigma1, nodes: [n1, n2, n3, n4]});
+      // Track min and max of σ1 for color mapping
+      if (sigma1 < minSigma) minSigma = sigma1;
+      if (sigma1 > maxSigma) maxSigma = sigma1;
+    }
+  }
+  // Update connectivity display with element-to-node mapping
+  let html = 'Connectivity (Element: [n1, n2, n3, n4]):\n';
+  for (let e = 0; e < elements.length; e++) {
+    html += 'E' + (e + 1) + ': ' + '[' + elements[e].nodes.join(', ') + ']\n';
+  }
+  connectivityDiv.html(html);
+}
+
+function draw() {
+  background(240);
+  // Check if mesh resolution slider changed
+  let newRes = slider.value();
+  if (newRes !== currentRes) {
+    currentRes = newRes;
+    createMesh();
+    selectedIndex = -1; // Deselect element on mesh change
+  }
+  let n = currentRes;
+  let dx = plateSize / n;
+  let dy = plateSize / n;
+  // Draw the mesh elements with color-coded stress
+  for (let e = 0; e < elements.length; e++) {
+    let el = elements[e];
+    // Map σ1 to color gradient using lerpColor (blue to red)9
+    let t = map(el.sigma1, minSigma, maxSigma, 0, 1);
+    let col = lerpColor(colLow, colHigh, t);
+    fill(col);
+    stroke(0);
+    let x = el.i * dx;
+    let y = el.j * dy;
+    rect(x, y, dx, dy);
+  }
+  // Highlight selected element
+  if (selectedIndex >= 0) {
+    let sel = elements[selectedIndex];
+    noFill();
+    stroke(255, 255, 0);
+    strokeWeight(4);
+    let x = sel.i * dx;
+    let y = sel.j * dy;
+    rect(x, y, dx, dy);
+    strokeWeight(1);
+    // Display node numbers at the center of selected element
+    fill(0);
+    noStroke();
+    textSize(12);
+    let centerX = (sel.i + 0.5) * dx;
+    let centerY = (sel.j + 0.5) * dy;
+    text('Nodes: [' + sel.nodes.join(',') + ']', centerX - 30, centerY);
+    // Draw Mohr's Circle for selected element
+    drawMohrsCircle(sel);
+  }
+}
+
+// Handle mouse clicks to select an element10
+function mousePressed() {
+  // Only consider clicks inside the plate region
+  if (mouseX >= 0 && mouseX < plateSize && mouseY >= 0 && mouseY < plateSize) {
+    let i = floor(mouseX / (plateSize / currentRes));
+    let j = floor(mouseY / (plateSize / currentRes));
+    selectedIndex = j * currentRes + i;
+  } else {
+    selectedIndex = -1;
+  }
+}
+
+// Function to draw Mohr's circle for an element's stress state
+function drawMohrsCircle(el) {
+  // Compute center and radius for Mohr's circle11
+  let sigmaAvg = 0.5 * (el.sxx + el.syy);
+  let R = sqrt(0.25 * sq(el.sxx - el.syy) + sq(el.txy));
+  // Define drawing area for Mohr's circle on the right side of canvas
+  let cx = 600;   // center x-position for circle
+  let cy = 350;   // center y-position for circle
+  // Draw axes
+  stroke(0);
+  line(cx - 150, cy, cx + 150, cy);  // horizontal axis (normal stress)
+  line(cx, cy - 150, cx, cy + 150);  // vertical axis (shear stress)
+  fill(0);
+  noStroke();
+  text('σ', cx + 155, cy + 5);
+  text('τ', cx + 5, cy - 155);
+  // Draw the Mohr's circle
+  stroke(150, 0, 150);
+  noFill();
+  let radiusPx = R; // 1 unit stress = 1 pixel (scale can be adjusted if needed)
+  // Convert center stress to canvas coordinates
+  let centerX = cx + sigmaAvg;
+  let centerY = cy;
+  ellipse(centerX, centerY, radiusPx * 2, radiusPx * 2);
+  // Mark principal stresses on circle
+  fill(255, 0, 0);
+  noStroke();
+  // Point for σ1 (maximum principal stress)
+  ellipse(centerX + radiusPx, centerY, 8, 8);
+  // Label σ1
+  text('σ1', centerX + radiusPx + 10, centerY - 5);
+  // Point for σ2 (minimum principal stress)
+  ellipse(centerX - radiusPx, centerY, 8, 8);
+  // Label σ2
+  text('σ2', centerX - radiusPx + 10, centerY - 5);
+}
+Explanation:
+We create a slider using createSlider(min, max, default) to control the number of elements per side�. Changing this slider triggers rebuilding the mesh (createMesh()) with new resolution.
+p5js.org
+The createMesh() function populates an array of elements. For each element, we assign synthetic stress components sxx, syy, txy (here random). We compute the principal stresses σ₁ and σ₂ using the standard plane stress formulas:
+\sigma_1 = \sigma_{\text{avg}} + R,\quad 
+\sigma_2 = \sigma_{\text{avg}} - R
+ as given in sources��. We track min/max σ₁ for coloring.
+en.wikipedia.org
+en.wikipedia.org
+We display the connectivity (element-to-node mapping) in a <div> on the page by constructing a string listing each element index and its four node numbers in brackets. The node numbering is row-major (1-based) across the grid of (n+1)×(n+1) nodes.
+In draw(), we loop over all elements, map the element’s max principal stress (σ₁) to a color using lerpColor(colLow, colHigh, t)�, where t is normalized between 0 and 1 from the min/max σ₁. We fill each element’s rectangle accordingly and draw its outline, thus visualizing stress via color gradient.
+p5js.org
+When the user clicks (mousePressed()�) inside the plate, we compute which element (i,j) was clicked, set it as selected, and highlight it by drawing a thick yellow border. We also overlay the node numbers of that element at its center.
+p5js.org
+If an element is selected, we draw its Mohr’s Circle on the right portion of the canvas. Using the selected element’s σx, σy, τxy, we compute center = (σ_avg, 0) and radius = R (from above)�. The circle is drawn with its center at (σ_avg, 0) in our stress-coordinate view. We also mark the principal stress points (σ1,0) and (σ2,0) on the circle and label them.
+en.wikipedia.org
+All code is contained in this p5.js sketch, and references indicate the formulas and p5.js functions used (e.g., slider creation, mouse interaction, color interpolation). The result is an interactive visualization meeting all specified requirements.
+Sources: Key formulas and methods are from standard plane stress theory and p5.js documentation�����.
+en.wikipedia.org
+en.wikipedia.org
+p5js.org
+p5js.org
+p5js.org
+
+To implement boundary conditions and distributed force animation, could you please clarify the following:
+What type of boundary conditions should be applied? (e.g., fixed left edge, fixed bottom edge)
+What kind of distributed force should be shown? (e.g., uniform downward force on top edge, point load on center)
+Do you want the animation to show displacement (deformed shape) over time, or just force vectors?
+Should the displacement be exaggerated visually, and should it affect stress distribution?
+Once I have these details, I’ll rewrite the full p5.js code accordingly.
