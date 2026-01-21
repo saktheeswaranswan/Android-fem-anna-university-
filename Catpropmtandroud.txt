@@ -1,0 +1,8 @@
+cst prompt
+
+
+Got it. I’ll rewrite the full p5.js sketch to simulate a plane stress problem assuming a CST (Constant Strain Triangle) model and brittle material behavior. The mesh will still be controlled by a slider, and when an element is selected, it will:
+Display the Mohr’s Circle based on CST-assumed stress state.
+Indicate failure if the max principal stress exceeds a certain brittle strength threshold.
+Show the maximum normal stress on the element and flag if it violates brittle failure criteria.
+I’ll let you know once the updated p5.js code is ready.
